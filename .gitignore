@@ -9,3 +9,5 @@ models/
 python/core.py
 tvhead-seg-tool.[0-9]*.toe
 tests/sample.jpg
+.venv/
+test/
