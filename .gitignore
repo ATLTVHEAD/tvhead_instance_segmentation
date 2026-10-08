@@ -5,4 +5,7 @@ __pycache__/
 models/
 *.pth
 *.ckpt
-
+[Bb]ackup/*
+python/core.py
+tvhead-seg-tool.[0-9]*.toe
+tests/sample.jpg

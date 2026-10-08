@@ -1,0 +1,107 @@
+// python/shaders.glslt — GLSL for the three output GLSL TOPs.
+// Copy ONE block into the matching GLSL TOP's GLSL parameter:
+//   overlay   -> `overlay` GLSL TOP   inputs: [0] source, [1] union mask
+//   chromakey -> `chromakey` GLSL TOP inputs: [0] source, [1] union mask
+//   composite -> `composite` GLSL TOP inputs: [0] source, [1] union mask, [2] boxdata
+//
+// boxdata layout: Data TOP, Width 384 (= MAXD*6), Height 1, mono float32.
+// Slot i (0..63) = [x1, y1, x2, y2, class_id, conf], coords normalized 0..1.
+// Sample at TEXEL CENTERS: u = (idx + 0.5) / 384.0, v = 0.5.
+//
+// Param wiring (set as expressions on the GLSL TOP):
+//   invert      <- op('rfdetr').par.chromainvert
+//   sharp       <- op('rfdetr').par.chromasharp
+//   chromaColor <- op('rfdetr').par.chromacolor
+//   hideSource  <- op('rfdetr').par.hidesource
+//   detsCount   <- op('rfdetr').par.dets
+
+// ---------------- overlay ----------------
+layout(location = 0) out vec4 fragColor;
+
+void main() {
+    vec2 uv = vUV.st;
+    
+    // Correct TouchDesigner array syntax: sTD2DInputs[index]
+    vec3 src = texture(sTD2DInputs[0], uv).rgb;
+    float m = texture(sTD2DInputs[1], uv).r;
+    
+    fragColor = TDOutputSwizzle(vec4(src, m));
+}
+
+// ---------------- chromakey ----------------
+// Uniforms declared in GLSL TOP Vectors/Parameters page
+uniform float invert;
+uniform float sharp;
+uniform vec3 chromaColor;
+
+layout(location = 0) out vec4 fragColor;
+
+void main() {
+    vec2 uv = vUV.st;
+
+    // tex(1, uv) -> texture(sTD2DInputs[1], uv)
+    float m = texture(sTD2DInputs[1], uv).r;
+
+    if (invert > 0.5) {
+        m = 1.0 - m;
+    }
+    if (sharp > 0.0) {
+        m = smoothstep(0.5 - sharp * 0.5, 0.5 + sharp * 0.5, m);
+    }
+
+    // tex(0, uv) -> texture(sTD2DInputs[0], uv)
+    vec3 src = texture(sTD2DInputs[0], uv).rgb;
+    vec3 outRGB = mix(chromaColor, src, m);
+
+    fragColor = TDOutputSwizzle(vec4(outRGB, 1.0));
+}
+
+// ---------------- composite ----------------
+// Uniforms declared in GLSL TOP Vectors/Parameters page
+uniform float hideSource;
+uniform float detsCount;
+
+layout(location = 0) out vec4 fragColor;
+
+vec3 classColor(float id) {
+    float h = mod(id * 0.6180339, 1.0);
+    return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+}
+
+void main() {
+    vec2 uv = vUV.st;
+
+    // Use TouchDesigner's built-in resolution information for input 0
+    vec2 res = uTD2DInfos[0].res.zw;
+    float t = 2.0 / min(res.x, res.y);
+
+    float m = texture(sTD2DInputs[1], uv).r;
+    vec3 base = (hideSource > 0.5) ? vec3(0.0) : texture(sTD2DInputs[0], uv).rgb;
+    vec3 outRGB = mix(base, base + vec3(0.2, 0.6, 1.0) * 0.30, m);
+
+    int dets = int(detsCount);
+    for (int i = 0; i < 64; i++) {
+        if (i >= dets) break;
+
+        // tex(2, ...) -> texture(sTD2DInputs[2], ...)
+        float x1  = texture(sTD2DInputs[2], vec2((float(i * 6 + 0) + 0.5) / 384.0, 0.5)).r;
+        float y1  = texture(sTD2DInputs[2], vec2((float(i * 6 + 1) + 0.5) / 384.0, 0.5)).r;
+        float x2  = texture(sTD2DInputs[2], vec2((float(i * 6 + 2) + 0.5) / 384.0, 0.5)).r;
+        float y2  = texture(sTD2DInputs[2], vec2((float(i * 6 + 3) + 0.5) / 384.0, 0.5)).r;
+        float cid = texture(sTD2DInputs[2], vec2((float(i * 6 + 4) + 0.5) / 384.0, 0.5)).r;
+
+        vec2 lo = vec2(x1, y1);
+        vec2 hi = vec2(x2, y2);
+
+        float inside = step(lo.x, uv.x) * step(uv.x, hi.x)
+                     * step(lo.y, uv.y) * step(uv.y, hi.y);
+
+        float dEdge  = min(min(abs(uv.x - lo.x), abs(uv.x - hi.x)),
+                           min(abs(uv.y - lo.y), abs(uv.y - hi.y)));
+
+        float border = inside * step(dEdge, t);
+        outRGB = mix(outRGB, classColor(cid), border);
+    }
+
+    fragColor = TDOutputSwizzle(vec4(outRGB, 1.0));
+}
