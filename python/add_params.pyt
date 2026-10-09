@@ -2,12 +2,13 @@
 # TouchDesigner Textport
 # Safe to re-run
 
-root = op("/atltvhead_greenscreen/rfdetr")
+# Dev project layout: the product wrapper sits inside the top container.
+root = op("/atltvhead_greenscreen/atltvhead_greenscreen/rfdetr")
 
 if root is None:
     raise RuntimeError(
         "rfdetr container not found at "
-        "/atltvhead_greenscreen/rfdetr"
+        "/atltvhead_greenscreen/atltvhead_greenscreen/rfdetr"
     )
 
 
