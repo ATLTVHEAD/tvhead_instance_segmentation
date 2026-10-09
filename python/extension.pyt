@@ -5,9 +5,8 @@
 # This file is the TouchDesigner glue layer.
 # RF-DETR inference itself lives in the `core` DAT.
 #
-# The component may sit anywhere in a project, so the root is resolved
-# by walking up from the infer Script TOP to the nearest COMP that
-# contains both "python/core" and "status" (the rfdetr component).
+# The component is addressed by its absolute path so this continues to
+# work regardless of where the infer Script TOP is located inside the TOX.
 
 import time
 import types
@@ -17,6 +16,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Component configuration
 # ---------------------------------------------------------------------------
+
+ROOT_PATH = "/atltvhead_greenscreen/rfdetr"
 
 MAX_DETS = 64
 BOXDATA_W = MAX_DETS * 6
@@ -31,32 +32,10 @@ _core = None
 # ---------------------------------------------------------------------------
 
 
-# Resolved on the first cook; see _find_root().
-_root_cached = None
-
-
-def _find_root(start):
-    """Walk up from start to the nearest COMP that is the RF-DETR component."""
-
-    c = start
-
-    while c is not None:
-        if getattr(c, "isComp", False):
-            try:
-                if c.op("python/core") is not None and c.op("status") is not None:
-                    return c
-            except Exception:
-                pass
-
-        c = getattr(c, "parent", None)
-
-    return None
-
-
 def _root():
-    """Return the RF-DETR component (resolved on the first cook)."""
+    """Return the RF-DETR component."""
 
-    return _root_cached
+    return op(ROOT_PATH)
 
 
 # ---------------------------------------------------------------------------
@@ -296,12 +275,7 @@ def _whitelist(root=None):
 def onCook(scriptOp):
     """Run one RF-DETR inference pass."""
 
-    global _root_cached
-
-    if _root_cached is None or not _root_cached.isValid():
-        _root_cached = _find_root(scriptOp)
-
-    root = _root_cached
+    root = _root()
 
     # ---------------------------------------------------------------
     # Make sure the component exists.

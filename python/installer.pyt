@@ -7,47 +7,10 @@ import sys
 
 
 # =========================================================
-# Component path (path-independent)
+# Component path
 # =========================================================
-#
-# The component may sit anywhere in a project, so instead of
-# hardcoding its absolute path we walk up from a callback's
-# own operator to the nearest COMP that contains both
-# "python/core" and "status" — the rfdetr component.
 
-ROOT = None
-
-
-def _find_root(start):
-
-    c = start
-
-    while c is not None:
-        if getattr(c, "isComp", False):
-            try:
-                if c.op("python/core") is not None and c.op("status") is not None:
-                    return c
-            except Exception:
-                pass
-
-        c = getattr(c, "parent", None)
-
-    return None
-
-
-def _resolve_root(start):
-
-    global ROOT
-
-    try:
-        if ROOT is not None and ROOT.isValid():
-            return ROOT
-    except Exception:
-        pass
-
-    ROOT = _find_root(start)
-
-    return ROOT
+ROOT = "/atltvhead_greenscreen/rfdetr"
 
 
 # =========================================================
@@ -70,11 +33,6 @@ _st = {
 
 
 def _log(line):
-
-    if ROOT is None:
-        print("ERROR: rfdetr component not found")
-
-        return
 
     log_op = op(ROOT + "/setup/install_log")
 
@@ -418,50 +376,6 @@ def start_predl():
     _next_predl()
 
 
-def start_predl_all():
-
-    if _st["proc"] is not None:
-        _log("predownload already running\n")
-
-        return
-
-    try:
-        import rfdetr
-
-    except ImportError as e:
-        _log("rfdetr not importable: %s\n" % e)
-
-        _log("Run Install first.\n")
-
-        return
-
-    try:
-        names = list(_core_mod().VARIANTS.keys())
-
-    except Exception as e:
-        _log("ERROR loading core VARIANTS: %s\n" % e)
-
-        return
-
-    if not names:
-        _log("no variants found in core\n")
-
-        return
-
-    _st["names"] = names
-    _st["idx"] = 0
-    _st["cmds"] = None
-
-    _read_process_output._length = 0
-
-    _log(
-        "\nStarting predownload of ALL %d model variants...\n"
-        % len(names)
-    )
-
-    _next_predl()
-
-
 # =========================================================
 # Load core
 # =========================================================
@@ -652,16 +566,11 @@ def on_button_click(btn_name):
     elif btn_name == "btn_predl":
         start_predl()
 
-    elif btn_name == "btn_predl_all":
-        start_predl_all()
-
     elif btn_name == "btn_dev":
         detect_device()
 
 
 def onPulse(par):
-
-    _resolve_root(par.owner)
 
     on_button_click(par.op.name)
 
@@ -672,10 +581,6 @@ def onPulse(par):
 
 
 def onCook(scriptOp):
-
-    # Keep the component reference current (works at any project path).
-
-    _resolve_root(scriptOp)
 
     # Read whatever pip has written so far.
 
