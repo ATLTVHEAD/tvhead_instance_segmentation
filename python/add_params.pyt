@@ -2,12 +2,20 @@
 # TouchDesigner Textport
 # Safe to re-run
 
-root = op("/atltvhead_greenscreen/rfdetr")
+def _container():
+    """The rfdetr container that owns this DAT (rfdetr/python/add_params)."""
+    try:
+        return me.parent().parent()
+    except Exception:
+        return None
+
+
+root = _container()
 
 if root is None:
     raise RuntimeError(
-        "rfdetr container not found at "
-        "/atltvhead_greenscreen/rfdetr"
+        "rfdetr container not found above this DAT "
+        "(expected rfdetr/python/add_params)"
     )
 
 
