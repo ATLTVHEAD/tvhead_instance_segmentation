@@ -18,7 +18,10 @@ def onValueChange(par, prev):
     root = par.owner
     core = root.fetch("rfdetr_core", None)
     if core is not None:
-        core._MODEL_CACHE.clear()
-        
+        core.clear_model_cache()
+
     root.par.State = "loading"
-    root.op("status").text = f"[loading] reloading model ({par.name} changed)"
+
+    status = root.op("status")
+    if status is not None:
+        status.text = f"[loading] reloading model ({par.name} changed)"
