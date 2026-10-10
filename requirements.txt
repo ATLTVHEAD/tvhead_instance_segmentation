@@ -1,7 +1,4 @@
-pip>=24.0
-setuptools>=79.0.1
 --extra-index-url https://download.pytorch.org/whl/cu128
-
 torch>=2.11.0
 torchvision>=0.26.0
 rfdetr

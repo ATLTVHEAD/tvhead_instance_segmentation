@@ -1,0 +1,137 @@
+Yes — you can make `rfdetr` a self-contained TouchDesigner `.tox` by replacing hardcoded absolute operator paths with paths relative to the component. I would use `me.parent()` or, even better, store the component reference once in your Python extension and derive internal operator paths from it.
+
+The important distinction is that `me.parent()` is relative to the operator executing the code. It isn't automatically the root of your RF-DETR component in every DAT or extension.
+
+For your `tvhead_instance_segmentation` project, I'd aim for this structure:
+
+- `rfdetr.tox` owns its parameters, inference Script TOP, callbacks, Python extension, status/logging DATs, and model-loading logic.
+- Internal scripts resolve operators relative to the `rfdetr` component, regardless of where someone places the `.tox`.
+- External dependencies such as the model checkpoint and optional installation directory are configurable, not tied to your development project folder.
+
+That is consistent with TouchDesigner's component and Python extension model: an extension can receive its owning component and use that reference to access the component's operators.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://derivative.ca\&sz=32)
+
+Derivative
+
++1
+
+
+
+## 1. The pattern I recommend
+
+Instead of using `root` or repeating paths like `op('/project1/rfdetr/...')`, establish a single owner reference.
+
+For example, suppose the component contains:
+
+```
+rfdetr (Base COMP)
+├── python
+│   ├── callbacks (Text DAT)
+│   ├── extension (Text DAT)
+│   └── core (Text DAT)
+├── infer (Script TOP)
+├── setup (Base COMP)
+│   ├── install_log (Text DAT)
+│   └── btn_install (Button COMP)
+└── output ...
+```
+
+In the Python extension, use the component passed into its constructor:
+
+```
+class RFDETRExt:    def __init__(self, ownerComp):        self.ownerComp = ownerComp    def op(self, relative_path):        """Resolve an operator relative to this RF-DETR component."""        result = self.ownerComp.op(relative_path)        if result is None:            raise RuntimeError(                f"RF-DETR operator not found: {relative_path}"            )        return result
+```
+
+Then you can reference internal operators like this:
+
+```
+self.op("infer")self.op("setup/install_log")self.op("python/callbacks")
+```
+
+The key is that `self.ownerComp` is the `rfdetr` component, wherever that component is placed in a project.
+
+## 2. When to use `me.parent()` versus `me.parent().parent()`
+
+Both can work, but the correct number of parent hops depends on where the code lives.
+
+| Code location                       | Likely reference       |
+| ----------------------------------- | ---------------------- |
+| DAT directly inside `rfdetr`        | `me.parent()`          |
+| DAT inside `rfdetr/python`          | `me.parent().parent()` |
+| Script TOP directly inside `rfdetr` | `me.parent()`          |
+| Extension class                     | `self.ownerComp`       |
+
+For a DAT inside the `python` subcomponent, you could define a helper:
+
+```
+def rfdetr():    return me.parent().parent()
+```
+
+Then:
+
+```
+rfdetr().op("infer")rfdetr().op("setup/install_log")
+```
+
+My preference: use `self.ownerComp` in the extension and a clearly named helper in standalone DATs. Avoid scattering `me.parent().parent()` throughout your code, because a future network restructuring could silently break your assumptions.
+
+## 3. Fixing the callbacks and installer
+
+Your recent installer and inference issues make it especially important to distinguish operator paths from filesystem paths.
+
+For example, in a button callback DAT:
+
+```
+def onOffToOn(channel, sampleIndex, val, prev):    owner = me.parent().parent()    installer = owner.op("python/installer")    if installer is not None:        installer.module.start_install()
+```
+
+This assumes the button callback DAT is two levels below `rfdetr`. Verify that hierarchy in your actual network before using it.
+
+For your installer, I'd also pass the owning component into the install function instead of making the installer locate `root` or guess where the log lives.
+
+```
+def start_install(ownerComp):    log_dat = ownerComp.op("setup/install_log")    if log_dat is None:        raise RuntimeError("Missing setup/install_log")    # Run the installation and write progress to log_dat.
+```
+
+That makes the install logic portable. You can change the location of `rfdetr` without rewriting the installation code.
+
+## 4. Don't confuse operator paths with file paths
+
+Relative operator references solve the TouchDesigner network problem, but they don't automatically solve the filesystem problem.
+
+| Resource          | Recommended approach                                                       |
+| ----------------- | -------------------------------------------------------------------------- |
+| Script TOP or DAT | `ownerComp.op("infer")`                                                    |
+| Log DAT           | `ownerComp.op("setup/install_log")`                                        |
+| Model checkpoint  | Configurable path or path relative to the component's storage location     |
+| Python packages   | Explicit installation target for the TouchDesigner Python environment      |
+| Project root      | Avoid depending on it unless the resource genuinely belongs to the project |
+
+For external files, derive paths from the component's actual `.tox` location when appropriate, or expose a parameter for the model directory. Avoid assuming that the current working directory is the repository root.
+
+## 5. How I'd approach your `dev` branch
+
+Your repository contains both `rfdetr.tox` and Python modules, so the next step is to separate component-relative references from external installation and model paths. [Open the repository](https://github.com/ATLTVHEAD/tvhead_instance_segmentation).
+
+I'd audit these areas in order:
+
+1. `python/callbacks` — remove hardcoded network paths.
+2. The RF-DETR extension — establish one owning component reference.
+3. The inference Script TOP — resolve internal operators from the component.
+4. Installer code — pass the component or log DAT into the installer.
+5. Model loading — separate model storage paths from TouchDesigner operator paths.
+
+TouchDesigner extensions are designed to provide component-specific functionality, and the component's extension system supports this ownership pattern.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://derivative.ca\&sz=32)
+
+Derivative
+
++1
+
+
+
+One caveat: I could confirm the repository's existence and its top-level files, but couldn't reliably inspect the complete `dev` branch source through the browser. So the examples above illustrate the refactor pattern rather than claiming to be exact replacements for your current files.
+
+The main takeaway: yes, use a known component-relative reference instead of `root`. I'd use `self.ownerComp` as the canonical root inside the extension and `me.parent()` or `me.parent().parent()` only where the DAT's actual hierarchy requires it. That gives you a portable `.tox` without making the code dependent on the surrounding project network.
