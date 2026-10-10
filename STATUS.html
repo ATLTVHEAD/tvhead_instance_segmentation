@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Head Instance Segmentation — Status</title>
+<style>
+:root{--bg:#1e1e2e;--card:#181825;--ink:#cdd6f4;--mut:#9399b2;--line:#45475a;--acc:#cba6f7;--ok:#a6e3a1;--warn:#f9e2af;--bad:#f38ba8;--cbg:#11111b;--cink:#cdd6f4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:26px 18px 50px}
+header{background:#11111b;border:1px solid #313244;border-left:4px solid #cba6f7;color:#cdd6f4;border-radius:12px;padding:20px 24px;margin-bottom:20px}
+header h1{margin:0 0 6px;font-size:23px;color:#b4befe}
+header p{margin:0;color:#a6adc8}
+.badge{display:inline-block;background:#313244;color:#bac2de;border:1px solid #45475a;border-radius:999px;padding:3px 12px;font-size:12.5px;margin:10px 8px 0 0}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin-bottom:18px}
+h2{margin:0 0 12px;font-size:19px}
+h3{margin:18px 0 8px;font-size:15.5px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#313244}
+code{font-family:Consolas,Menlo,monospace;font-size:12.5px}
+p code,li code,td code{background:#313244;color:#f5c2e7;padding:1px 5px;border-radius:4px}
+pre{background:var(--cbg);color:var(--cink);border-radius:10px;padding:12px 14px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+.ok{color:var(--ok);font-weight:600}.todo{color:var(--warn);font-weight:600}
+ol.steps{list-style:none;padding:0;counter-reset:st}
+ol.steps>li{position:relative;padding:0 0 12px 40px;counter-increment:st}
+ol.steps>li::before{content:counter(st);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+ol.steps>li>b{display:block;margin-bottom:3px}
+.note{background:rgba(249,226,175,.07);border:1px solid rgba(249,226,175,.4);border-radius:10px;padding:9px 13px;font-size:13.5px;margin:10px 0}
+img.fig{width:100%;border:1px solid var(--line);border-radius:10px}
+footer{color:var(--mut);font-size:13px;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>TV Head Instance Segmentation — Status</h1>
+  <p>RF-DETR instance detection + segmentation inside TouchDesigner — self-contained TOX, component-relative scripts, tdPyEnvManager dependencies.</p>
+  <div>
+    <span class="badge">self-contained .tox</span>
+    <span class="badge">tdPyEnvManager (no installer)</span>
+    <span class="badge">core 17/17 tested</span>
+    <span class="badge">updated 2026-10-09</span>
+  </div>
+</header>
+<section id="status">
+  <h2>1 · Current status</h2>
+  <table>
+    <tr><th>Item</th><th>State</th><th>Notes</th></tr>
+    <tr><td>Design docs</td><td class="ok">Done</td><td><code>docs/architecture.md</code> + <code>docs/implementation-guide.md</code> + the new-implementation spec in <code>docs/superpowers/</code>.</td></tr>
+    <tr><td>Component-relative scripts</td><td class="ok">Done</td><td><code>extension.pyt</code> (root = <code>me.parent()</code>), <code>callbacks.pyt</code>, <code>add_params.pyt</code> — no absolute operator paths anywhere in <code>python/</code>; all covered by headless suites.</td></tr>
+    <tr><td>Pure core <code>python/core.py</code></td><td class="ok">Done</td><td><code>load_model</code>, <code>predict_frame</code>, <code>build_union</code>, <code>chromakey</code>, <code>check_dependencies</code>; numpy-only top-level imports (torch/rfdetr lazy). Tested 17/17 headless.</td></tr>
+    <tr><td>Dependency management</td><td class="ok">Done</td><td>tdPyEnvManager env <code>.venv</code>, Python 3.11 (<code>TDPyEnvManagerContext.yaml</code> + <code>requirements.txt</code>). <code>installer.pyt</code> and the setup panel removed.</td></tr>
+    <tr><td>README</td><td class="ok">Done</td><td><code>README.md</code> — requirements, quick start, parameter table, layout, development, troubleshooting.</td></tr>
+    <tr><td>TOX rebuild</td><td class="ok">Done</td><td><code>rfdetr.tox</code> rebuilt (46 KB) and saved in TouchDesigner; all Python lives in DATs inside the TOX.</td></tr>
+    <tr><td>In-TD verification of the refactored DATs</td><td class="todo">Todo</td><td>Walk the checklist in §5 after syncing the DATs (§4).</td></tr>
+    <tr><td>Model weights pre-download</td><td class="todo">Partial</td><td><code>rf-detr-seg-medium</code> + <code>rf-detr-nano</code> cached in <code>%USERPROFILE%\.roboflow\models</code>; other variants download on first use.</td></tr>
+  </table>
+</section>
+<section id="diagram">
+  <h2>2 · Data flow</h2>
+  <img class="fig" src="docs/flow-diagram.svg" alt="rfdetr TOX data flow diagram">
+  <p>Source → <code>infer</code> (Script TOP, GPU inference on the cook thread) → union mask TOP, <code>boxdata</code> TOP (384 floats) and <code>detections</code> DAT → the GLSL outputs (overlay / chromakey / composite), which also take the full-res source.</p>
+</section>
+<section id="prereq">
+  <h2>3 · Prerequisites</h2>
+  <table>
+    <tr><th>Requirement</th><th>Status</th></tr>
+    <tr><td>TouchDesigner with a working license, bundled Python 3.11</td><td>the TOX runs on the machine that runs the show</td></tr>
+    <tr><td>GPU (RTX-class) — <b>optional</b></td><td><code>Device = auto</code> selects CUDA when available (cu128 wheels) and falls back to CPU</td></tr>
+    <tr><td>Internet on first use</td><td>model weights (~100–350 MB per variant) download to <code>%USERPROFILE%\.roboflow\models</code></td></tr>
+    <tr><td>Dependencies</td><td>tdPyEnvManager creates <code>.venv</code> from <code>requirements.txt</code> — rfdetr, torch, supervision, opencv-python-headless</td></tr>
+  </table>
+  <div class="note">Order of operations: open the TOX, run the tdPyEnvManager setup, then wire a source in. No installer script, no setup panel — the environment does the rest.</div>
+</section>
+<section id="build">
+  <h2>4 · Sync the TOX DATs</h2>
+  <p>The <code>.pyt</code> files in <code>python/</code> are the source of truth; the TOX carries them as DATs. After editing any of them, sync them back:</p>
+  <ol class="steps">
+    <li><b>Open <code>rfdetr.tox</code></b> — double-click the container to open it.</li>
+    <li><b>Sync <code>python/extension.pyt</code></b> — paste into the <code>infer</code> Script TOP's Callbacks DAT.</li>
+    <li><b>Sync <code>python/callbacks.pyt</code></b> — paste into the container's <b>Callbacks DAT</b>.</li>
+    <li><b>Sync <code>python/add_params.pyt</code></b> — paste into <code>python/add_params</code> and re-run the Textport (idempotent — safe to re-run).</li>
+    <li><b>Sync <code>python/core.py</code></b> — paste into <code>python/core</code>.</li>
+    <li><b>Run the tdPyEnvManager setup</b> — so <code>.venv</code> exists and is populated from <code>requirements.txt</code>.</li>
+    <li><b>Save the <code>.tox</code></b> — right-click the container → <b>Save As</b> → <code>rfdetr.tox</code>.</li>
+  </ol>
+</section>
+<section id="verify">
+  <h2>5 · In-TD verification checklist</h2>
+  <ol>
+    <li><code>State</code> cycles <code>init</code> → <code>loading</code> → <code>ready</code> on the first cook; the <code>status</code> DAT ends on a <code>[ready]</code> line.</li>
+    <li>Mask TOP is full-resolution 0/1 (subject region = 1, background = 0).</li>
+    <li><code>boxdata</code> TOP is 384 × 1, 32-bit float; unused slots stay zeroed.</li>
+    <li><code>detections</code> DAT has the header row <code>class_id, class, confidence, x1, y1, x2, y2, area, frame</code> plus one row per detection.</li>
+    <li>Switching <code>Model</code> flips <code>State</code> to <code>loading</code> and the UI does not hang.</li>
+    <li>Portability proof: rename the component to <code>rfdetr2</code> in a scratch project — it still cooks.</li>
+    <li>Drop the <code>.tox</code> into a brand-new empty project — it works with no path edits.</li>
+  </ol>
+</section>
+<section id="trouble">
+  <h2>6 · Troubleshooting</h2>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
+    <tr><td><code>[no-deps]</code> in the status DAT</td><td>Python deps missing — run the tdPyEnvManager setup so <code>.venv</code> is created and populated from <code>requirements.txt</code>.</td></tr>
+    <tr><td>First cook of a variant takes a long time</td><td>Weights download (~100–350 MB) on first use to <code>%USERPROFILE%\.roboflow\models</code>.</td></tr>
+    <tr><td>CUDA unavailable on this machine</td><td>Set <code>Device: cpu</code> — or leave it on <code>auto</code>, which falls back automatically.</td></tr>
+    <tr><td><code>operator not found</code>-style errors</td><td>A missing internal DAT — the error message names the one (e.g. <code>rfdetr/python/core</code>).</td></tr>
+  </table>
+</section>
+<section id="next">
+  <h2>7 · Next steps</h2>
+  <ol>
+    <li>Pre-download all variants before the show.</li>
+    <li>ONNX / TensorRT export for sub-10 ms inference.</li>
+    <li>Per-class colors in the overlay.</li>
+    <li>Packaging (dist-ready TOX + docs).</li>
+  </ol>
+</section>
+<footer>
+  RF-DETR TouchDesigner TOX — repo: <code>tvhead_instance_segmentation</code> · docs in <code>docs/</code> · headless suites in <code>tests/</code> (core 17/17, extension 9/9, add_params 3/3, callbacks 5/5).
+</footer>
+</div>
+</body>
+</html>
