@@ -5,8 +5,8 @@
 # This file is the TouchDesigner glue layer.
 # RF-DETR inference itself lives in the `core` DAT.
 #
-# The component is addressed by its absolute path so this continues to
-# work regardless of where the infer Script TOP is located inside the TOX.
+# The owning component is resolved component-relatively (me.parent()),
+# so the TOX works at any path and under any instance name.
 
 import time
 import types
@@ -16,8 +16,6 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Component configuration
 # ---------------------------------------------------------------------------
-
-ROOT_PATH = "/atltvhead_greenscreen/rfdetr"
 
 MAX_DETS = 64
 BOXDATA_W = MAX_DETS * 6
@@ -33,9 +31,12 @@ _core = None
 
 
 def _root():
-    """Return the RF-DETR component."""
+    """Return the RF-DETR component that owns this Script TOP."""
 
-    return op(ROOT_PATH)
+    try:
+        return me.parent()
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -60,13 +61,17 @@ def core_module():
     root = _root()
 
     if root is None:
-        raise RuntimeError("RF-DETR root component not found: %s" % ROOT_PATH)
+        raise RuntimeError(
+            "RF-DETR root component not found (me.parent() is None)"
+        )
 
-    core_dat_path = ROOT_PATH + "/python/core"
-    core_dat = op(core_dat_path)
+    core_dat_path = "python/core"
+    core_dat = root.op(core_dat_path)
 
     if core_dat is None:
-        raise RuntimeError("RF-DETR core DAT not found: %s" % core_dat_path)
+        raise RuntimeError(
+            "RF-DETR core DAT not found: rfdetr/%s" % core_dat_path
+        )
 
     if not hasattr(core_dat, "text"):
         raise RuntimeError(
